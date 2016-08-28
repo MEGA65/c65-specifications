@@ -3464,7 +3464,7 @@ Push registers or data onto stack              PHA PHP PHW PHX PHY PHZ
 
    PHA   Push Accumulator onto stack
    PHP   Push Processor status onto stack
-   PHW   Push a word from memory onto stack
+   PHW   Push a word from memory onto stack (also noted as PHD)
    PHX   Push index X onto stack
    PHY   Push index Y onto stack
    PHZ   Push index Z onto stack
@@ -3839,7 +3839,7 @@ back into memory.
 |CPX |SBC |LDA*|INW*|CPX |SBC |INC |SMB6|INX |SBC |EOM |ROW*|CPX |SBC |INC |BBS6|
 |IMM |INDX|IDSP|ZP  |ZP  |ZP  |ZP  |ZP  |    |IMM |NOP |ABS |ABS |ABS |ABS |ZP  | E
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-|BEQ |SBC |SBC |BEQ*|PHD*|SBC |INC |SMB7|SED |SBC |PLX |PLZ*|PHD*|SBC |INC |BBS7|
+|BEQ |SBC |SBC |BEQ*|PHW*|SBC |INC |SMB7|SED |SBC |PLX |PLZ*|PHW*|SBC |INC |BBS7|
 |REL |INDY|INDZ|WREL|IMM |ZPX |ZPX |ZP  |    |ABSY|    |    |ABS |ABSX ABSX|ZP  | F
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
 
