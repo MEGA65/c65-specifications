@@ -764,7 +764,7 @@ memory,  and  overlays  the application area with DOS RAM in the lower
 
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
 | <- | !  | "  | #  | $  | %  | &  | '  | (  | )  |    |    |    |    |CLR |INST|
-|    | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 0  | +  | -  | œ  |HOME|DEL |
+|    | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 0  | +  | -  | £  |HOME|DEL |
 +----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+----+
 |  TAB  |    |    |    |    |    |    |    |    |    |    |    |    | ã  | RSTR |
 |       | Q  | W  | E  | R  | T  | Y  | U  | I  | O  | P  | @  | *  | ^  |      |
@@ -802,7 +802,7 @@ Notes:
                |     |     |     |     |     |     |     |     |                  |
                V     V     V     V     V     V     V     V     V                  |
 +-----+     +-----+-----+-----+-----+-----+-----+-----+-----+-----+               |
-| R0  |<----+ INS |  #  |  %  |  '  |  )  |  +  | œ   |  !  | NO  |               |
+| R0  |<----+ INS |  #  |  %  |  '  |  )  |  +  |  £  |  !  | NO  |               |
 |PIN12|     | DEL |  3  |  5  |  7  |  9  |     |     |  1  | SCRL|               |
 +-----+     +-----+-----+-----+-----+-----+-----+-----+-----+-----+               |
 | R1  |<----+ RET |  W  |  R  |  Y  |  I  |  P  |  *  | <-- | TAB |               |
@@ -7297,6 +7297,22 @@ VIC  character  set.  Non-text characters are ignored.  If the address
 of  the character set is not given,  the upper/lower ROM character set
 is used ($29800).
 
+The following imbedded control characters are supported:
+
+     ^F     6    flip
+     ^I     9    invert
+     ^O    15    overwrite
+     ^R    18    reverse field on
+          146    reverse field off
+     ^U    21    underline
+     ^Y    25    tilt
+     ^Z    26    mirror
+
+When specifying  a character set from ROM,  note that national versions
+of  the C64DX  will have  the national character set  at $39000 and the
+C64 character  set at  $3D000.   In  US/English  systems,  the  default
+C64DX-mode character set will be at $39000.
+
                 CHAR 18,96, 1,1,2, "C65D", DEC("9000")
 
 The  above  example will draw the characters "C65D" in the center of a
@@ -7362,6 +7378,8 @@ GOSUBs, DO/LOOPs, FOR/NEXT loops, etc.), and clears any user functions
 (DEF  FNx).  Any  OPEN  channels  are  forgotten  (but  a CLOSE is not
 performed; don't use if there are any open disk output files). A CLeaR
 is automatically performed by a RUN or a NEW command.
+
+CLR ERR$	Clears BASIC error stuff, useful after a TRAP
 
 
 CMD -- Set default output channel
@@ -7553,6 +7571,15 @@ in radians. The result is in the range -1 to 1.
 
 To  get  the cosine  of  an  angle  measured in degrees,  multiply the
 numeric expression by pi/180.
+
+
+CURSOR -- Place cursor on screen
+
+     CURSOR [<ON|OFF>,] [column] [,row] [,style]
+                        
+         column,row = x,y logical screen position
+			style      = flashing (0) or solid (1)
+			ON,OFF     = to turn the cursor on or off
 
 
 CUT -- Cut a graphic area into a temporary structure
@@ -8711,12 +8738,12 @@ on LET statements are not allowed.
 
 LINE -- Draw a line on a graphic screen
 
-                         LINE x0, y0, x1, y1
+                     LINE x0, y0 [,[x1] [,y1]]...
 
 LINE  draws  a  line  on the currently defined graphic screen with the
 currently  defined  draw  modes.  The  line  is  draw  from (x0,y0) to
-(x1,y1).
-
+(x1,y1), if more  parameters are specified a line  is drawn from point
+to point. If only x0 and y0 are specified, draws a dot.
 
 LIST -- List a BASIC program from memory or disk
 
@@ -8779,6 +8806,17 @@ See the discussion at DLOAD regarding CHAINING programs.
                      called F$ from the unit whose number is in DRV.
   LOAD "0:PROG" 8    Loads BASIC program PROG from unit 8, drive 0.
   LOAD "BIN",8,1     Loads a binary file into memory.
+
+
+LOADIFF -- Load an IFF picture from disk.
+
+								LOADIFF "file" [,U#,D#]
+
+Loads an IFF picture from disk.  Requires a suitable graphic screen to
+be already  opened  (this may change).  The file  must contain std IFF
+data in  PRG file type.  IFF pics  can be ported  directly from  Amiga
+(eg., using  XMODEM).  Returns  'File Data Error' if it  finds data it
+does not like.
 
 
 LOCATE -- [*** NOT YET IMPLEMENTED ***]
@@ -8872,6 +8910,13 @@ reported. If the length given is zero, no characters will be replaced.
  A$="TICTACTOE": MID$(A$,5)  ="123456"   Result is 'ILLEGAL QUANTITY'
 
 
+MOD -- Function to calculate modulus
+
+                     MOD (number, modulus)
+
+New function. (*TODO*: write documentation)
+
+
 MONITOR -- Enter the built-in machine language monitor
 
              SEE SECTION 3.2 ON THE C64DX MONITOR.
@@ -8902,6 +8947,16 @@ sprite.
 
 Use the RMOUSE function to get the current pointer position and button
 status. See the sample program at RMOUSE.
+
+*TODO*: include update:
+	MOUSE  ON  [,[port] [,[sprite] [,[hotspot] [,X/Yposition] ]]]
+	MOUSE  OFF
+		where:	port     = (1...3) for joyport 1, 2, or either (both)
+			sprite   = (0...7) sprite pointer
+			hotspot  = x,y offset in sprite, default 0,0
+			position = normal, relative, or angluar coordinates
+			Defaults to sprite 0, port 2, last hotspot (0,0), and
+			position.  Kernel doesn't let hotspot leave the screen.
 
 
 MOVSPR -- Position sprite or set sprite in motion
@@ -9097,6 +9152,10 @@ with  the  color  of  the  currently  defined PEN.  The mode parameter
 identifies the region to be filled.
 
             [*** THIS COMMAND IS NOT YET IMPLEMENTED ***]
+*TODO*: include update
+	PAINT  x, y [,color]
+			Working, but not completely to spec.  Uses draw pen
+			color and fills emptyness to any border.
 
 
 PALETTE -- Define a color
@@ -9862,7 +9921,8 @@ RND -- Get a pseudo-random number
 The  RND function returns a pseudo RaNDom number between 0 and 1.  The
 random sequence returned is determined by the type parameter:
 
-  type = 0    Returns a random number based upon the system clock.
+  type = 0    Returns a random number based upon the unused POT of the
+              second SID chip. PCB must allow lines to float.
   type < 0    Negative numbers "seed" the random number generator,
               defining a new but reproducible random sequence.
   type > 0    Positive numbers draw the next random number from the
@@ -10220,6 +10280,11 @@ command, which lets you send any command to a disk drive.
 Because  the  built-in C64DX drives always take precedence over serial
 bus drives, this is one way to get the built-in drive "out of the way"
 so that you can access a serial bus drive #8.
+
+						 SET DISK #	(without [TO #] parameter)
+
+Allows the user to clear DS$ message  and specify which drive next DS$
+comes from.
 
 
 SGN -- Get the sign of a number
@@ -15828,23 +15893,23 @@ C64DX System Specification UPDATE
 +----+   +----+----+----+----+   +----+----+----+----+   +----+----+----+----+
 
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
-|   <| !  | "  | # | $  | %  | &  | ' /| (  | )  |  " |  ? |  ` |  ^ |CLR |INST|
-|  >| 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 0  | + á| - '| œ [|HOME|DEL |
+|   <| !  | "  | # '| $  | %  | &  | ' /| (  | )  |  " |  ? |  ` |  ^ |CLR |INST|
+|PI >| 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 0  | + á| - '| £ [|HOME|DEL |
 +----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+----+
-|  TAB  |    |    |    |    |    |  Z |    |    |    |    |  š |    |  \ | RSTR |
+|  TAB  |    |    |    |    |    |  Z |    |    |    |    |  \ |    |  \ | RSTR |
 |       | Q  | W  | E  | R  | T  | Y  | U  | I  | O  | P  | @  | * +| ^ ]|      |
 +----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+------+
-|CTRL|SHFT|    |    |    |    |    |    |    |    |    |  ™ |  Ž |  ' |  RETURN |
+|CTRL|SHFT|    |    |    |    |    |    |    |    |    |  V |  D |  ' |  RETURN |
 |    |LOCK| A  | S  | D  | F  | G  | H  | J  | K  | L  | : [| ; ]| = #|         |
 +----+----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+----+----+----+
-| C= | SHIFT |  Y |    |    |    |    |    |    | < ;| > :| ? _| SHIFT|    |
-|    |       | Z  | X  | C  | V  | B  | N  | M  | ,  | .  | / -|      |   |
+| C= | SHIFT |  Y |    |    |    |    |    |    | < ;| > :| ? _| SHIFT|CRSR|
+|    |       | Z  | X  | C  | V  | B  | N  | M  | ,  | .  | / -|      | UP |
 +----+-------+-+--+----+----+----+----+----+----+----+----+-+--+-+----+----+----+
-               |                                            |    |    |    |    |
-               |                                            |    |   |   |   |
+               |                                            |    |CRSR|CRSR|CRSR|
+               |                                            |    |LEFT|DOWN|RITE|
                +--------------------------------------------+    +----+----+----+
 
-
+ 
 Notes:
 
 1/ The   operation   of   national  keyboards  is  identical  to  C128
@@ -15861,9 +15926,9 @@ Notes:
    "deadkey"  followed  by  a  valid  vowel  or  accent character will
    'build' the desired character:
 
-         accent d'aigue:      ‚
-         accent grave:        …, Š, —
-         accent circonflex:   ƒ, ˆ, Œ, ", –
+         accent d'aigue:      (*TODO*)
+         accent grave:        (*TODO*), (*TODO*), (*TODO*)
+         accent circonflex:   (*TODO*), (*TODO*), (*TODO*), (*TODO*), (*TODO*)
 
 4/ National  character  ROM graphic characters differ from the C64 and
    ASCII (English) graphic character sets.
