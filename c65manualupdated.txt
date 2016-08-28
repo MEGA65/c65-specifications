@@ -279,8 +279,8 @@ MIDI), and productivity as well as entertainment software.
 
    o  CPU -- Commodore CSG4510 running at 1.02 or 3.5 Mhz
 
-        o  New instructions, including Rockwell and GTE extensions
-***KEN*** See section 2.3.7.1 for details on the extensions.
+        o  New instructions, including Rockwell and GTE extensions,
+           see section 2.3.7.1 for details on the extensions.
 
         o  Memory Mapper supporting up to 1 Megabyte address space
 
@@ -2513,106 +2513,101 @@ previously defined MOS, Rockwell, and GTE opcodes.
 
 
 1. Branches and Jumps
-***KEN*** for the following list, if the instruction is a new opcode, I've
-***KEN*** added it in front of the mnemonic.
+    * after the opcode denotes a new command
+    + after the opcode denotes expanded functionality
 
-    93  BCC label      word-relative
-    B3  BCS label      word-relative
-    F3  BEQ label      word-relative
-    33  BMI label      word-relative
-    D3  BNE label      word-relative
-    13  BPL label      word-relative
-    83  BRA label      word-relative
-    53  BVC label      word-relative
-    73  BVS label      word-relative
+    93*  BCC label      word-relative
+    B3*  BCS label      word-relative
+    F3*  BEQ label      word-relative
+    33*  BMI label      word-relative
+    D3*  BNE label      word-relative
+    13*  BPL label      word-relative
+    83*  BRA label      word-relative
+    53*  BVC label      word-relative
+    73*  BVS label      word-relative
 
-    63  BSR label      Branch to subroutine (word relative)
-    22  JSR (ABS)      Jump to subroutine absolute indirect
-    23  JSR (ABS,X)    Jump to subroutine absolute indirect, X
-    62  RTN #          Return from subroutine and adjust stack pointer
+    63*  BSR label      Branch to subroutine (word relative)
+    22*  JSR (ABS)      Jump to subroutine absolute indirect
+    23*  JSR (ABS,X)    Jump to subroutine absolute indirect, X
+    62*  RTN #          Return from subroutine and adjust stack pointer
 
 2. Arithmetic Operations
 
-    42  NEG A          Negate (or 2's complement) accumulator
+    42*  NEG A          Negate (or 2's complement) accumulator
 
-    43  ASR A          Arithmetic Shift right accumulator or memory
-    44  ASR ZP
-    54  ASR ZP,X
+    43*  ASR A          Arithmetic Shift right accumulator or memory
+    44*  ASR ZP
+    54*  ASR ZP,X
 
-    E3  INW ZP         Increment Word
-    C3  DEW ZP         Decrement Word
+    E3*  INW ZP         Increment Word
+    C3*  DEW ZP         Decrement Word
 
-    1B  INZ            Increment and
-    3B  DEZ            Decrement Z register
+    1B*  INZ            Increment and
+    3B*  DEZ            Decrement Z register
 
-    CB  ASW ABS        Arithmetic Shift Left Word
-    EB  ROW ABS        Rotate Left Word
+    CB*  ASW ABS        Arithmetic Shift Left Word
+    EB*  ROW ABS        Rotate Left Word
 
-        ORA (ZP),Z     These were formerly (ZP) non-indexed
-        AND (ZP),Z     now are indexed by Z register
-        EOR (ZP),Z     (when .Z=0, operation is the same)
+    12+  ORA (ZP),Z     These were formerly (ZP) non-indexed
+    32+  AND (ZP),Z     now are indexed by Z register
+    52+  EOR (ZP),Z     (when .Z=0, operation is the same)
 
-        ADC (ZP),Z
-        CMP (ZP),Z
-        SBC (ZP),Z
+    72+  ADC (ZP),Z
+    D2+  CMP (ZP),Z
+    F2+  SBC (ZP),Z
 
-    C2  CPZ IMM        Compare Z register with memory immediate,
-    D4  CP2 ZP         zero page, and
-    DC  CPZ ABS        absolute.
+    C2*  CPZ IMM        Compare Z register with memory immediate,
+    D4*  CP2 ZP         zero page, and
+    DC*  CPZ ABS        absolute.
 
 3. Loads, Stores, Pushes, Pulls and Transfers
 
 
-        LDA (ZP),Z     formerly (ZP)
+    B2+  LDA (ZP),Z     formerly (ZP)
 
-    A3  LDZ IMM        Load Z register immediate,
-    AB  LDZ ABS        absolute,
-    BB  LDZ ABS,X      absolute,X.
+    A3*  LDZ IMM        Load Z register immediate,
+    AB*  LDZ ABS        absolute,
+    BB*  LDZ ABS,X      absolute,X.
 
-    E2  LDA (d,SP),Y   Load Accu via stack vector indexed by Y
-    82  STA (d,SP),Y   and Store
+    E2*  LDA (d,SP),Y   Load Accu via stack vector indexed by Y
+    82*  STA (d,SP),Y   and Store
 
-    9B  STX ABS,Y      Store X Absolute,Y
-    8B  STY ABS,X      Store Y Absolute,X
+    9B*  STX ABS,Y      Store X Absolute,Y
+    8B*  STY ABS,X      Store Y Absolute,X
 
-        STZ ZP         Store Z register (formerly store zero)
-        STZ ABS
-        STZ ZP,X
-        STZ ABS,X
+    64+  STZ ZP         Store Z register (formerly store zero)
+    9C+  STZ ABS
+    74+  STZ ZP,X
+    9E+  STZ ABS,X
 
-        STA (ZP),Z     formerly  (ZP)
+    92+  STA (ZP),Z     formerly  (ZP)
 
-    F4  PHD IMM        Push Data Immediate (word)
-    FC  PHD ABS        Push Data Absolute (word)
+    F4*  PHW IMM        Push Data Immediate (word)
+    FC*  PHW ABS        Push Data Absolute (word)
 
-    DB  PHZ            Push Z register onto stack
-    FB  PLZ            Pull Z register from stack
+    DB*  PHZ            Push Z register onto stack
+    FB*  PLZ            Pull Z register from stack
 
-    4B  TAZ            Transfer Accumulator to Z register
-    6B  TZA            Transfer Z register to Accumulator
+    4B*  TAZ            Transfer Accumulator to Z register
+    6B*  TZA            Transfer Z register to Accumulator
 
-    5B  TAB            Transfer Accumulator to Base page register
-    7B  TBA            Transfer Base page register to Accumulator
+    5B*  TAB            Transfer Accumulator to Base page register
+    7B*  TBA            Transfer Base page register to Accumulator
 
-    0B  TSY            Transfer Stack Pointer High byte to Y register
-                        and set "byte" stack-pointer mode
-***KEN*** According to the detailed info below, the TSY instruction does not
-***KEN*** change the state of the E bit, which controls the 16 bit stack mode.
+    0B*  TSY            Transfer Stack Pointer High byte to Y register
 
-    2B  TYS            Transfer Y register to Stack Pointer High byte
-                        and set "word" stack-pointer mode
-***KEN*** According to the detailed info below, the TYS instruction does not
-***KEN*** change the state of the E bit, which controls the 16 bit stack mode.
+    2B*  TYS            Transfer Y register to Stack Pointer High byte
 
-***KEN*** I've added the following three entries as summaries of the CLE, SEE,
-***KEN*** and MAP instructions
-    02  CLE            Clear the Extend Disable bit in the P register.  In other
-                        words, set the stack pointer to 16 bit mode.
-    03  SEE            Set the Extend Disable bit in the P register.  In other
-                        words, set the staack pointer to 8 bit mode.
+    02*  CLE            Clear the Extend Disable bit in the P register.
+                        In other words, set the stack pointer to 16 bit
+                        mode.
+    03*  SEE            Set the Extend Disable bit in the P register.
+                        In other words, set the staack pointer to 8 bit
+                        mode.
 
-    5C  MAP            Enter MAP mode, and start setting up a memory mapping.
-                         Exit MAP mode by executing a NOP, opcode EA.
+    5C*  MAP            Enter MAP mode, and start setting up a memory
+                        mapping.
+    EA+  EOM            Exit MAP mode, formerly NOP.
 
 2.3.7.2. CPU Operation
 
@@ -3740,9 +3735,6 @@ back into memory.
 
 
 2.3.7.6. 4502 Opcode Table
-***KEN***  I fixed the addressing mode for opcode 14.  It was listed as
-***KEN***  ZPX, but it's really ZP.  There is no ZPX addressing mode for
-***KEN***  TRB instruction.
 
   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
 +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
