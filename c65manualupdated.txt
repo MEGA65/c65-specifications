@@ -1228,7 +1228,7 @@ NMI/        78         I/O   The NMI/ pin is an open drain bi-directional
 
 IRQ/        79         I/O   The Interrupt Request line (IRQ/) is an open
                              drain bi-directional signal. A passive pull-
-                             up (3K Ohms minimum) is tied on this pin/
+                             up (3K Ohms minimum) is tied on this pin,
                              allowing multiple IRQ/ sources to be connected
                              together. This pin is sampled during PH2 and
                              when a negative transition  is detected an inter-
@@ -3568,7 +3568,7 @@ Otherwise, it is cleared.
   N - - - - - Z C
 
 
-Return from BRK, interrupt, kemal,  or subroutine          RTI RTN RTS
+Return from BRK, interrupt, kernal,  or subroutine         RTI RTN RTS
 
 Operation    description       Opcode bytes cycles
 
@@ -3602,6 +3602,62 @@ stack pointer SP is incremented by 2 + N, instead of by 2, as in RTS.
   - - - - - - - - (RTN and RTS)
   7 6 - - 3 2 1 0 (RTI)
 
+
+Subtract memory from accumulator with borrow                             SBC
+
+A=A-M+C-1
+
+  Addressing Mode               Abbrev.    Opcode
+
+  immediate                     IMM         E9
+  base page                     BP          E5
+  base page indexed X           BP,X        F5
+  absolute                      ABS         ED
+  absolute indexed X            ABS,X       FD
+  absolute indexed Y            ABS,Y       F9
+  base page indexed indirect X  (BP,X)      E1
+  base page indirect indexed Y  (BP),Y      F1
+  base page indirect indexed Z  (BP),Z      F2
+
+   Bytes   Cycles     Mode
+     2       2      immediate
+     2       3      base page non-indexed, or indexed X or Y
+     3       4      absolute  non-indexed, or indexed X or Y
+     2       5      base page indexed indirect X, or indirect indexed Y or Z
+
+      The SBC instructions subtract data fetched from memory from the contents
+of the accumulator, assuming the "C" or "carry" flag was set. If "C" was clear,
+an additional count is subtracted. The results of the subtract is stored in
+the accumulator. If the "D" or Decimal Mode flag, in the processor status regis-
+ter, then a Binary Coded Decimal (BCD) subtract is performed.
+
+      The "N" or Negative flag will be set if the difference is negative,
+otherwise it is cleared. The "V" or Overflow flag will be set if the sign
+of the difference is different from the sign of both operands, indicating a
+signed overflow. Otherwise, it is cleared. The "Z" or Zero flag is set if
+the difference (stored into the accumulator) is zero, otherwise, it is cleared.
+The "C" or carry is set if the unsigned minuend (in the accumulator) is greater-
+than or equal-to the unsigned subtrahend (in memory). Otherwise, it is cleared.
+
+       Flags
+  N V E B D I Z C
+  N V - - - - Z C
+
+
+Set processor status bits                                 SEC SED SEE SEI
+
+                                        Opcode  Cycles      Flags
+                                                       N V E B D I Z C
+   SEC   Set the Carry bit                38      1    - - - - - - - S
+   SED   Set the Decimal mode bit         F8      1    - - - - S - - -
+   SEE   Set stack Extend disable bit     03      2    - - S - - - - -
+   SEI   Set Interrupt disable bit        78      2    - - - - - S - -
+
+   Bytes    Mode
+     1     implied
+
+      All of the P register bit set intructions are a single byte long.
+Most of them require a single CPU cycle. The SEE and SEI require 2 cycles.
 
 Set memory bits                                                    SMB
 
