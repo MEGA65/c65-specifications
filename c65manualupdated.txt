@@ -2,6 +2,7 @@
 This document was updated by Ken Sumrall on 3/26/06.  I've noted my
 updates with the notation ***KEN***.  They are all in the CPU section.
 ***NOTE***
+(*TODO*: remove above note, once all ***KEN*** remarks are integrated)
 
 C64DX SYSTEM SPECIFICATION
 
@@ -237,8 +238,22 @@ Table of Contents
     3.5. DOS
     3.6. RS-232
 
-4.0. Development Support
+4.0. C65 DMAgic (F018B) DMA Coprocessor
 
+    4.1. Introduction
+    4.2. DMAT External Registers
+    4.3. DMAT Internal Registers
+    4.4. Memory Layout
+    4.5. Using DMAgic from BASIC
+
+        4.5.1. Linear Examples
+        4.5.2. Modulo Example
+        4.5.3. XY_Mod Example
+        4.5.4. Barrel Shifter Example
+
+A. Development Support
+
+B. C64DX System Specification UPDATE
 
 
 1.0. Introduction
@@ -7576,7 +7591,7 @@ numeric expression by pi/180.
 CURSOR -- Place cursor on screen
 
      CURSOR [<ON|OFF>,] [column] [,row] [,style]
-                        
+
          column,row = x,y logical screen position
 			style      = flashing (0) or solid (1)
 			ON,OFF     = to turn the cursor on or off
@@ -15758,7 +15773,477 @@ Command string bytes:    baud|word|parity|stop(unused)|duplex|xline
 
 
 
-4.0. C64DX DEVELOPMENT SOPPORT
+4.0. C65 DMAgic (F018B) DMA Coprocessor
+
+4.1. Introduction
+
+The  C64DX DMAgic chip  is a  command-list  DMA (Direct Memory Access)
+coprocessor with integrated  blitter capabilities.  It is used to copy
+or fill  linear or  rectangular areas  of memory  much faster  than is
+possible  using  the CPU.  DMAgic can  perform logical  operations and
+shifts of binary data, and  it is particularly well suited to graphics
+operations.  It has absolute address access to the entire one megabyte
+address  space  of  the  C65, and  translated  address  access  to VIC
+graphics memory using simple X-Y coordinates.
+
+A  DMA/blitter  coprocessor can  be used  for many  different types of
+operations  in a  computer system such  as the C65, and DMAgic is very
+versatile in  this regard.  Although each  of these  uses may  require
+significantly  different command  specifications, DMAgic  is very easy
+to program and use.
+
+Throughout  this chapter  the term  "DMAT"  will refer  to any  DMAgic
+Transfer  operation.  A DMAT is  prepared by  creating a  12-byte DMAT
+instruction   list   anywhere  in  the  RAM.   A  DMAT   is   executed
+automatically  after writing  the address of the DMAT instruction list
+to DMAgic's LP/trigger (List Pointer) register.
+
+A DMAT list  can be  prepared in  advance and executed at  any time by
+pointing  the  DMAgic  chip  to  it.  Optionally,  DMAT  lists  can be
+chained together  and the collection  of lists executed  with a single
+trigger.  Additionally,  DMATs  can  be  interruptable/continuable  to
+yield to processor or system interrupts.
+
+In general, a DMAT instruction  list consists of  a Command specifying
+the type  of operation  to be  performed, a  Count  of  the number  of
+memory  bytes  to  be  transferred,  and  the  Source  and Destination
+addresses of the  data to  be transferred.  When the  address  of  the
+instruction  list  is  written  to  the  LP/trigger  register,  DMAgic
+temporarily takes  control of the  system from  the CPU, automatically
+loads its internal  registers from the instruction  list, and proceeds
+to execute the  specified  DMAT operation.  The  completion  status of
+the  operation  can  be  read   from  DMAgic's  status  register,  and
+(optionally) interrupted operations can be resumed or canceled.
+
+4.2. DMAT External Registers
+
+Externally, DMAgic  appears as four  registers located in I/O space at
+$D700.  There are  three  write-only  address registers  and  one  R/W
+status register.  The  order in  which the  address/trigger  registers
+are  written  is   very  important,  so  as  to   avoid  inadvertantly
+triggering a DMA  operation with  an invalid  list pointer.  The usual
+procedure is:
+
+	1. Write the number of the list's bank (0-15) to LP_BNK.
+	2. Write the high byte of the list's address to LP_HI.
+	3. Write the low byte of the list's address to LP_LO/TRIGGER.
+
+As soon  as the  LP_LO/TRIGGER  register  is  written to,  the CPU  is
+suspended and the  DMA operation commences.  When the DMA operation is
+complete, the  CPU resumes  processing with  the very next instruction
+following the write cycle.  The contents  of the instruction list, and
+the DMAgic LP  registers, are unchanged.  The  very same DMA operation
+could be performed again by performing step 3 above only.
+
+In the case where  a DMAT is made  interruptable and an interrupt (IRQ
+or NMI) were to occur, DMAgic  would enter a "spin" state, and release
+the  bus  to  the  CPU.  Upon  completion  of  its  interrupt  service
+routine, the  CPU would  signal DMAgic  that it can resume the DMAT by
+reading the  STATUS register, or cancel the unfinished DMAT by writing
+to  the  STATUS  register  (writing  to  the  TRIGGER  register  would
+effectively  cancel  the  pending  DMAT  and  start  a  new one).  The
+following code  illustrates a  generic  DMAT  call  for  a  previously
+prepared DMAT instruction list:
+
+
+		LDA #bank      ;The bank (0-15) where the list is
+		STA $D702
+		LDA #>address  ;The high byte of the list address
+		STA $D701
+		LDA #<address
+		STA $D700      ;The low byte of the list address
+                     ;This also triggers the DMA operation,
+                     ;and the CPU is suspended
+
+loop:	BIT $D703      ;Check status (in case IRQ/NMI enabled)
+		BMI loop       ; busy
+
+
+4.3. DMAT Internal Registers
+
+A DMAT operation  is specified by a twelve-byte  command spec called a
+DMAT list.  Upon writing  to the  LP_LO/TRIGGER  register ($D700), the
+coprocessor  will fetch  the  DMAT  list and  initialize its  internal
+registers  according  to  the  contents  of  the  list.  The DMAT list
+consists  of a  primary COMMAND  byte, two COUNT  bytes, three  SOURCE
+Address  bytes, three  DESTINATION Address  bytes, a secondary COMMAND
+byte, and two MODULO/MODE bytes, as shown in the register description.
+
+The  entire list  must be  completely specified;  unused  (unrequired)
+parameters must be set to zero.  Many of the  internal registers  have
+different functions, dependent upon the command mode(s) selected.
+
+DMAgic OPERATING MODES
+
+The primary  command byte CMD_LO specifies what kind of DMAT operation
+is to be performed:
+
+*  COPY	- Copy a block of memory to another area in memory.
+
+*  MIX	- Perform a boolean minterm mix of a source block of memory
+           with a destination block of memory.
+
+*  SWAP	- Exchange the contents of two blocks of memory.
+
+*  FILL	- Fill a block of memory with a source byte.
+
+Also  located in  the CMD_LO byte  are various  control parameters for
+the  command.  An S_DIR  and  D_DIR bit provide  independant direction
+control  for  both  the  source  and   destination  address  pointers.
+Transfers may be ascending (UP), or  descending (DOWN), or mixed.  The
+TEST bit can be set  to tell DMAgic to test the  memory blocks without
+WRITING a result, and to quit  early if a collision or verify error is
+detected.  If the CHAIN bit is  set, DMAgic will fetch and execute the
+next  twelve-byte DMAT  list in memory  upon completion  of this DMAT.
+If the INT bit is set, DMAgic will  suspend this transfer if either an
+IRQ or NMI system  interrupt occurs.  The operation  will be continued
+following a READ of the STATUS register ($D703).
+
+The  secondary  command  byte  CMD_HI  specifies  the  addressing mode
+DMAgic  is  to  use  during  the  DMAT  operation.    There  are  four
+addressing  modes:  LINEAR MODE,  MODULO MODE,  HOLD MODE, and  XY_MOD
+MODE.  The lower nybble (4 bits)  of CMD_HI specifies which addressing
+mode is to be  used for the  Source and  Destination Address pointers.
+THIS DETERMINES THE FORMAT IN  WHICH THE COUNT, SOURCE AND DESTINATION
+ADDRESS, AND MODULO BYTES MUST BE GIVEN.  For  LINEAR and  HOLD modes,
+ABSOLUTE addresses,  a 16 bit count, and  a ZERO modulo  are required.
+For  MODULO mode,  ABSOLUTE addresses, an 8-bit  rows-count, an  8 bit
+columns-count, and a  16 bit modulo  are required.  Finally, if XY_MOD
+mode  is  selected,  RELATIVE  X-Y  coordinate   addresses,  an  8 bit
+rows-count, an  8 bit columns-count, an  8 bit modulo,  and  an  8 bit
+XY_MISC must be given.
+
+
+ADDRESSING MODES:	HOLD  MOD   ADDRESSING MODE
+
+------------------------------------------------------------
+                   0     0    LINEAR  -  CONSECUTIVE
+                   0     1    MODULO  -  RECTANGULAR
+                   1     0    HOLD    -  CONSTANT
+                   1     1    XY_MOD  -  BITMAP RECTANGULAR
+
+
+There  is  one  more  bit  in  the Source and Destination Address Bank
+bytes, called I/O, that tells  DMAgic whether to access system memory,
+or  memory mapped I/O space.  This  could  be used  in conjuntion with
+the HOLD  bit to tranfer to or from an I/O port, such  as an expansion
+cartridge, hard disk controller, or network interface.
+
+4.4. Memory Layout
+
+Most routine  data transfer operations  can be performed with a linear
+DMAT, where  all  addresses  are  consecutive.  The transfer length in
+this case  is specified  as a  16 bit count  (CNT_LO,CNT_HI), up  to a
+maximum of 64K bytes long (a value  of zero is used to  tranfer a full
+64K bytes).  With the use  of the MODULO register, rectangular  blocks
+of data, such as  characters on a text screen, or graphic  images on a
+bitmap  screen,  can  be  moved   as  a  windowed  operation,  without
+disturbing  adjacent  data.  In this  mode, the length of  transfer is
+specified by  COLUMNS and  ROWS, with a maximum  of 256 columns(bytes)
+by 256 rows(lines).
+
+Bitplane display memory  in the C65 is  organized as 8 x 8 bit grouped
+cells as described in the graphics chapter.  Due to  this arrangement,
+a normal  "linear" transfer  would not  produce the  desired  results.
+Instead, a special XY_MODE has  been included to perform the necessary
+address-munging  on  the  fly.   In  this  mode,  only  the  X  and  Y
+coordinates of the start of the block, as well as the screen location,
+must  be  specified, and  DMAgic  will compute  the translated display
+address.
+
+DMAgic performs all transfers on  byte boundaries, and as such, is not
+a bit blitter.  However, through  careful programming, the coprocessor
+can  perform many  "bit" type  operations.  Using the  built-in  logic
+operations  and bit-barrel-shifter,  individual  bits  (or pixels) may
+be  manipulated, making  DMAgic particularly  well suited to  bitplane
+graphics operations.
+
+
+4.5. Using DMAgic from BASIC
+
+BASIC 10.0 provides  a DMA  command to  make it  easy  to  access  the
+capabilities  of the  DMAgic chip.  The  parameters of the DMA command
+are used to construct  and execute  a DMAT  list.  All  of the  DMAGIC
+capabilities  are  available  through  this  command  except for  list
+chaining.  Refer  to the BASIC Encyclopedia in  Chapter 8 for details.
+Note that the  BASIC DMA command allows you  to specify the count  and
+address  parameters  as  single,  16-bit  values,  and   automatically
+defaults optional parameters to zero.
+
+Alternatively, you  can program  your own machine  language routine to
+execute DMAT lists  which have been POKEd or BLOADed into memory.  You
+cannot  use the  BASIC POKE  command  to execute a DMAT  list  because
+BASIC itself  uses DMA to  parse and  execute BASIC  commands such  as
+POKE.  While  not   as  convenient   as  BASIC's  DMA   command,  user
+programmed  DMA  operations  can  be much  faster, and  allow  use  of
+special DMAGIC features such as chaining.
+
+4.5.1. Linear Examples
+
+The most  common use  of DMA  is to  copy or fill  consecutive  memory
+locations using  the default  LINEAR addressing  mode.  When operating
+in Linear mode, the  DMA chip will  increment or decrement  the Source
+and Destination addresses for Count number of bytes.
+
+The following  example copies 80 characters from the first line of the
+text screen ($00800) to the  second line ($00850), and  the associated
+attributes (starting at $1F800):
+
+	10 REM  CMD, CNT, SRC_ADR & BANK,  DEST_ADR & BANK      COPY:
+	20  DMA  0,  80,  DEC("0800"), 0,  DEC("0850"), 0	:REM CHARACTERS
+	30  DMA  0,  80,  DEC("F800"), 1,  DEC("F850"), 1	:REM COLORS
+
+The following example fills the first line of the text screen with
+'*' characters:
+
+	10 REM  CMD, CNT, FILL_BYTE, (unused), DEST_ADR & BANK  FILL:
+	20  DMA  3,  80,  ASC("*"),    0,      DEC("0800"), 0
+
+Note  that only  6 parameters  were  required  for  these  two  simple
+transfers.  The Secondary command  and Modulo bytes can be omitted for
+a LINEAR DMAT, and  the BASIC interpreter will  automatically set them
+to zero.
+
+4.5.2. Modulo Example
+
+Windowing  systems  have become  popular  on  computers.  A window  is
+frequently  used to  temporarily display  a message or offer a menu of
+options, and then  "go away"  without disturbing  previous information
+on  the  screen.  To accomplish  this, a  program must  save the  area
+where a window is to appear, display  the window, and then restore the
+saved area when the window is "closed".
+
+DMAgic has an  addressing mode  which supports  windowing  operations,
+called  MODULUS mode, where  an area  so many columns  wide by so many
+rows high is  copied or filled.  After  each byte in  a particular row
+is accessed, the address pointers  are incremented by one.  At the end
+of  each row, a  16 bit MODULO or SKIP value is  added to  the address
+pointers to advance them to the first location in the next row.
+
+In the next example, let's  display a 10 column by 6 row "window" near
+the center of  a text screen.  The text  screen starts  at $00800, and
+we'll  use some  free memory  at $01900 as a  save buffer.  Where  the
+upper left  corner of the window  appears will be the  Source address,
+and it's calculated as:
+    ScreenAddress + StartColumn + (StartRow*ScreenWidth).
+The Destination address is simply the address of our save buffer.  The
+Count for a MODULO operation  requires us to combine the dimensions of
+the  window into  a single  16-bit  value:  #Rows*256 + #Columns.  The
+MODULO (SKIP) value, MOD_LO and MOD_HI, is calculated as:
+    ScreenWidth - #Columns +1.
+The  CMD_LO byte  will specify  a copy operation, and  the CMD_HI byte
+will  specify  the Source  addressing mode to  be Modulo (01)  and the
+Destination addressing mode to be Linear (00):
+
+ 10 LIST                       :REM DISPLAY SOMETHING
+ 20 SZ = RWINDOW(2)            :REM DETERMINE SCREEN SIZE
+ 30 ADR = DEC("0800")+12+13*SZ :REM WINDOW ORIGIN AT 12,13
+ 40 CNT = 10+6*256             :REM WINDOW SIZE 10X6
+ 50 BUF = DEC("1900")          :REM 256 CHARACTER BUFFER
+ 60 SKP = SZ-10+1              :REM SKIP VALUE FOR 10 COLS
+
+ 100                           :REM SAVE & CLEAR WINDOW AREA
+ 110 REM  CMD, CNT, SRC_ADR,    DEST_ADR, CMD_H,     MOD_L,        MOD_H
+ 120  DMA  0,  CNT, ADR, 0,     BUF, 0,   DEC("01"), (SKP AND255), SKP/256
+ 130  DMA  3,  CNT, ASC(" "),0, ADR, 0,   DEC("04"), (SKP AND255), SKP/256
+
+ 140 RCURSOR X,Y: WINDOW 12,13, 12+10-1,13+6-1 :REM SAVE CURSOR POSITION
+ 150 FOR I = 0 TO 99: PRINT "WINDOWS! ";: NEXT :REM DISPLAY DATA IN WINDOW
+
+ 200                           :REM RESTORE PREVIOUS DATA
+ 210 REM  CMD, CNT, SRC_ADR,    DEST_ADR, CMD_H,     MOD_L,        MOD_H
+ 220  DMA  0,  cnt, buf, 0,     adr, 0,   DEC("04"), (skp AND255), skp/256
+
+ 230 PRINT CHR$(19);CHR$(19)   :REM CLOSE WINDOW
+ 240 CURSOR X,Y                :REM RESTORE CURSOR
+
+Notice that the MODULO addressing  mode was used whenever  we accessed
+the  screen, and  the LINEAR  addressing  mode  was  used  whenever we
+accessed the  save buffer.  This demonstrates DMAgic's ability  to mix
+addressing modes  independently  for Source and Destination addresses.
+An important point to understand  is that when a MODULO mode is chosen
+for either Source or Destination, the  DMA counter  becomes column-by-
+row based, and this dictates how many bytes will be transferred.
+
+4.5.3. XY_Mod Example
+
+The  MODULO mode  described above  works  well  on  text  screens, but
+bitplane graphic memory  on the C65 is not organized in  a "raster" or
+consecutive  fashion.  Instead, graphic memory  consists of  stacks of
+8 bytes called cells.  To accomodate this arrangement, DMAgic supports
+an  XY_MOD  mode to  allow you  to address  blocks or  windows in  the
+bitplane  simply  by  specifying  their  X-Y coordinates.  DMAgic then
+performs  the  necessary  address  translation, and  knows  to  add an
+adjusted XY_MODULO at the end of each row.
+
+There are a few differences to keep in mind when using XY_MOD mode:
+
+1.  Like MODULO mode, Count is  specified as  column-by-row, but  on a
+    bitplane screen, a column  is 8 pixels on the  X axis, while a row
+    is 1 pixel on the Y axis.  (A character  on the text screen is 8x8
+    pixels.)  This allows for  virtual sprites as wide as  the screen,
+    and up to 256 pixels high.
+
+2.  SA22-SA16 and DA22-DA16 are still specified normally in all modes,
+    but SA15-SA13 and DA15-DA13 are  shared as SD15-SD13 and appear in
+    the XY_MISC byte as XY_SCREEN_LOC.  Note that bitplanes must start
+    on even 8K (320 mode) or 16K (640 mode) boundaries within a bank.
+
+3.  You must specify  in the  XY_MISC byte whether the bitplane is 640
+    or 320 wide, and 400 or 200 high.
+
+4.  XY_MOD mode only  allows a 1-byte MODULO, MOD_L, which is adequate
+    for  low  and  high  resolution,  normal  and  interlaced  graphic
+    screens.  XY_MODULO = 128-Box_Width+1.
+
+5.  SA12-SA0 and DA12-DA0 are replaced by 7-bit X specifiers and 9-bit
+    Y specifiers in  the Source and Destination Pointers.  This allows
+    access to 128 bytes (or 1024 pixels) on the X axis, and 512 pixels
+    on the  Y axis.  This more than accomodates  bitplane screen modes
+    up to 640x400.
+
+6.  Since tranfers are done on  byte boundaries  in the X direction, a
+    barrel  shifter  is provided  to manipulate pixels  within a byte.
+    This  is  specified  by the  3-bit  XY_SHIFT_OFFSET in the XY_MISC
+    byte.  (Note that the barrel shifter is available only when XY_MOD
+    mode is selected.)
+
+A very  useful  application of DMAgic  is to  slide  a  graphic  image
+across the screen.  The VIC supports  8 hardware sprites, but they are
+somewhat  limited   in  size  and   color  depth.   "Virtual"  sprites
+implemented via DMAgic can move  images as large as the entire screen,
+and up to  8 bitplanes can be  "blitted" giving virtual sprites  up to
+256 colors.
+
+Below is an example utilizing a  XY_MOD bitplane DMAT.  A one-bitplane
+graphics  screen  is opened  and  initialize  it as  described in  the
+Graphics Chapter:
+
+ 10 TRAP 900: BANK 128: GRAPHIC CLR :REM  INIT GRAPHICS
+ 20 SREEN DEF   1,0,0,1			      :REM  OPEN 320X200X1 SCREEN
+ 30 SCREEN OPEN 1
+ 40 PALETTE     1,0, 0,0,0	 	      :REM  DEFINE PALETTE	BLACK
+ 50 PALETTE     1,1, 15,15,15		   :REM			         WHITE
+ 60 SCREEN SET  1,1			         :REM  ACTIVATE IT
+ 70 SCREEN CLR  0: BORDER 0
+
+First we will draw a  box 18 lines  high and 7 bytes (56 pixels) wide.
+We will locate  it on line 60, column 2.  We'll be using the FILL, and
+later the CoPY, commands.  To make our  DMA commands more readable, we
+will use meaningful variable names:
+
+ 100 DO                                 :REM  DRAW ON A BITMAP SCREEN
+ 110 HGT = 24: WID = 7: ROW = 60: COL = 2:  CPY = 0: FILL = 3
+ 120 CNT = HGT*256 + WID: DEST = ROW*128 + COL
+ 130 CMHI = 8 + 4                       :REM  DEST USES XYMOD ADDRESSING
+ 140 XYMD = 128 - WID + 1               :REM  STANDARD FORMULA FOR XYMOD
+ 150 SCRLOC = PEEK(DEC("D033")+2)AND14  :REM  FIND BITPLANE LOCATION
+ 160 MISC = SCRLOC * 8          :REM  SHIFT SCRLOC TO BIT(6:4) OF XYMISC
+ 170 DMA FILL,CNT,DEC("AA"),0,DEST,0,CMHI,XYMD,MISC :REM  FILL A BOX
+ 180 PEN 0,1: CHAR 3,68,1,1,2,CHR$(2)+"C65!!"       :REM  PUT TEXT IN IT
+
+Line 120  shows the  standard formulas  to use  in XYMOD mode  for the
+CouNT, as well  as the SouRCe  and DESTination  address pointers.  The
+reason that ROW  is multiplied  by 128 is  that the  Y (or ROW)  value
+occupies the upper 9 bits, while  the X (or COL) value is the  lower 7
+bits of the address pointer value.
+
+Line 130 sets our CoMmand_HI byte to 12, which tells  DMAgic that that
+the  DESTination  pointer  is using  XYMOD mode  addressing.  Line 140
+shows the standard formula for XYMoDulus (MOD_LO), when in XYMOD mode.
+
+Line 150 finds  the SCReen  LOCation value  that is  required  in  the
+XYMISC byte.  We are PEEKing the  VIC bitplane pointer register to see
+where the VIC is pointing.  In line 160, we  shift this value (* 8) to
+B6:B4 of xyMISC.
+
+Line 170 performs a FILL on the box with the FILL_BYTE of $AA, or
+"10101010".  Then in line 180, we use a BASIC graphic command to
+print "C65!!" in it.
+
+ 190 CMDHI = 8 + 4 + 2 + 1                 :REM  DEST AND SRC USE XYMOD
+ 200 FOR COL = 10 TO 26 STEP 8             :REM  STEP BY 8 BYTES
+ 210    SRC = DEST: DEST = ROW*128 + COL   :REM  SRC = PREVIOUS DEST
+ 220    DL = 5: GOSUB 800                  :REM  DELAY
+ 230    DMA CPY,CNT,SRC,0,DEST,0,CMHI,XYMD,MISC  :REM  COPY THE BOX
+ 240 NEXT COL                              :REM  STAMPS BOX ACROSS SCREEN
+ 500 LOOP                                  :REM  FOREVER
+
+ 800 TI$="": DO:LOOP UNTIL TI>DL: RETURN   :REM  DELAY SUBROUTINE
+
+ 900                                            :REM  ERROR TRAPPING...
+ 910 SCREEN CLOSE 1: PALETTE RESTORE: BORDER 6  :REM  RESTORE TEXT SCREEN
+ 920 END
+
+Lines  190  to  240  perform  a  loop  that  copies  the  image  to  a
+DESTtination  8 bytes  to the right  of the SRC  image.  The image  is
+copied 3 more times.  You might  want to clean  up the image's "trail"
+to make  it look  like it's  sliding.  Just add  this line to  fill it
+with zeros:
+
+235 DMA FILL,CNT,0,0,SRC,0,CMHI,XYMD,MISC       :REM  ERASE OLD BOX
+
+4.5.4. Barrel Shifter Example
+
+Below is an example  which smoothly shifts an image across  the screen
+using  the BARREL SHIFTER and  DESCENDING mode.  Normal ASCENDING mode
+would be  used to  SHIFT to the  right  on the  bitmap  screen.  Since
+we've already moved it to the  right side, we'll slide it to the left,
+back to its  original starting  location.  We will  accomplish this by
+choosing a box  that is the  full width of  the screen (40 bytes), and
+the height of our  image (24 rows). We  will tell DMAgic to shift this
+entire box  left by  one pixel.  Using  a FOR-NEXT  loop, we'll repeat
+this 191 times (26*8 -(2*8+1)), or  until the image is  back at column
+2.  This represents 8 pixel-shifts per  column, by 24 total columns-1.
+
+Add the following code to the program:
+
+ 300 :						:REM SLIDE USING BARREL SHIFTER
+ 310 SHFT = 1: MISC = SCRLOC * 8 + SHFT		    :REM SHFT IS BIT(2:0) OF XYMISC
+ 320 COL = 0: WID = 40: CNT = HGT*256 + WID	 :REM BOX IS FULL SCREEN WIDTH
+ 330 SRC = (ROW + HGT -1)*128 + (COL + WID -1) :REM SRC IS LOWER RIGHT CORNER
+ 340 CMHI = 8 + 4 + 2 + 1: XYMOD = 128 - WID + 1
+ 345 :						:REM IMAGE STARTS IN COLUMN 26
+ 350 FOR SLIDE = 26*8 TO 2*8+1 STEP -1
+ 360    DMA CPY+32+16,CNT,SRC,0,SRC,0, CMHI,XYMD,MISC :REM COPY IN PLACE
+ 370 NEXT SLIDE						                       :REM SLIDES BOX
+
+In line 310, we are  setting the  SHIFT value to 1, and  ORing it into
+B2:B0 of the  XYMISC byte.  A shift can be from  1 to 7 pixels, either
+to  the LEFT or  the RIGHT as  determined by  DESCENDING or  ASCENDING
+mode  respectively.   Since  we  want   to  shift  left,  we  selected
+DESCENDING mode.
+
+In line 320, we are  saying that the box  is 40 bytes wide and that it
+starts in column 0.  This is  actually wider  than we need, but  we're
+making it the full screen width to save ourselves a few calculations.
+
+Notice in  line 330 that we are calculating  the SRC address according
+to the  LOWER-RIGHT  corner of  the  box, instead  of the  upper-left.
+This  is the  first  requirement for  DESCENDING mode.  We  must  tell
+DMAgic to start with  the LAST address in  the box, since it  will now
+be DECREMENTING  by 1, and SUBTRACTING the MODULO when  it gets to the
+end of  a row.  DESCENDING  mode can be selected  individually for the
+source  and/or  the  destination  by  setting  D_DIR  and/or  S_DIR in
+CMD_LO, the command byte.  We chose DOWN for  both by adding 32 and 16
+to the COPY command in line 360.
+
+One more detail to notice  in line 360 is that  we are COPYing the box
+from  the SRC to  the SRC, or  copying in  place, performing  a BARREL
+SHIFT of its  pixels.  The bit-barrel shifter is a  device that allows
+for  movement of images  on pixel  boundaries, even  though the pixels
+are  addressed  8 at  a time  by each  byte address  of the  bit-plane
+image.  In this example of  a SHIFT-LEFT-BY-1, the barrel shifter will
+slide the seven rightmost  bits to the left and shift  a zero into the
+vacated  rightmost bit  location.  Zeros are  shifted in for  only the
+first byte  in a row.  For each  subsequent byte in the same  row, the
+data shifted out from  the previous byte is shifted  in.  This way our
+image  not  only can  slide by  pixels  within a  byte, but it  can be
+shifted out into the next adjoining  byte resulting in a smooth scroll
+of the image across the screen.
+
+
+A. C64DX DEVELOPMENT SOPPORT
 
 Please  photocopy  the  attached  'C64DX PROBLEM REPORT' and use it to
 report any problems.
@@ -15827,7 +16312,8 @@ description of it and explain why you want it.
 
 
 
-C64DX System Specification UPDATE
+B. C64DX System Specification UPDATE
+(*TODO*: integrate into document)
 
 
 *   The Monitor parser now allows PETSCII input/conversion:
@@ -15885,6 +16371,7 @@ C64DX System Specification UPDATE
          FF4B    WarmStartDOS      <<<new
 
 
+(*TODO* integrate into document start)
 2.1.2. German/Austrian Reyboard Layout
 
 +----+   +----+----+----+----+   +----+----+----+----+   +----+----+----+----+
@@ -15909,7 +16396,7 @@ C64DX System Specification UPDATE
                |                                            |    |LEFT|DOWN|RITE|
                +--------------------------------------------+    +----+----+----+
 
- 
+
 Notes:
 
 1/ The   operation   of   national  keyboards  is  identical  to  C128
@@ -16046,5 +16533,6 @@ MOUSE OFF
          position. Kernel doesn't let hotspot leave the screen.
 
 
-SYS 38552 - Enter DX mode
+SYS 38552 - Enter DX mode (*TODO: verify, isn't it SYS 58552?)
+(*TODO* integrate into document start)
 
