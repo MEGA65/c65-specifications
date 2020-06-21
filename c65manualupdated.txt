@@ -174,6 +174,7 @@ Table of Contents
         2.4.3. Functional Description
         2.4.4. Programming
         2.4.5. Registers
+        2.4.6. Limitations and Avoiding Them
 
     2.5. Disk Controller
 
@@ -325,7 +326,7 @@ MIDI), and productivity as well as entertainment software.
              via cartridge/expansion port using new system decodes.
 
         o  DMA -- Custom DMAgic controller chip built-in
-             Absolute address access to entire 8MB system map
+             Absolute address access to entire 1MB system map
              including I/O devices, both ROM & RAM expansion ports.
              List-based DMA structures can be chained together
              Copy (up,down,invert), Fill, Swap, Mix (boolean Minterms)
@@ -617,13 +618,13 @@ $0000 ---------------------------------------- +-----------+ +-----------+
               |
               |
        1M    $F,FFFF  +-------------+ ----------
-                      |             |
-                      +-           -+
-                      |     RAM     |     512K BLOCK APPEARING
-       768K  $C,0000  +-           -+     HERE IS DETERMINED BY
-                      |  EXPANSION  |     THE RAM EXPANDER CTLR
-                      +-           -+     (UP TO 8MB TOTAL MAP)
-                      |             |
+                      |             |     512K BLOCK APPEARING HERE
+                      +-           -+     IS DETERMINED BY THE RAM
+                      |     RAM     |     EXPANDER CTLR
+       768K  $C,0000  +-           -+     (CURRENTLY 2 BANKS ARE
+                      |  EXPANSION  |     SPECIFIED, MORE MIGHT BE
+                      +-           -+     POSSIBILE, BUT ARE NOT
+                      |             |     DEFINED)
        512K  $8,0000  +-------------+ ----------
                       |             |
                       +-  RESERVED -+     FUTURE CARTRIDGES
@@ -742,7 +743,7 @@ memory,  and  overlays  the application area with DOS RAM in the lower
             +-------------+
     $D600   |    UART     |     *RS-232, FAST SERIAL, NEW KEY LINES
             +-------------+
-    $D440   |   SID (L)   |     AUDIO CONTROLLER (LEFT)
+    $D420   |   SID (L)   |     AUDIO CONTROLLER (LEFT)
     $D400   |   SID (R)   |     AUDIO CONTROLLER (RIGHT)
             +-------------+
     $D300   | BLU PALETTE |
@@ -3585,12 +3586,12 @@ Otherwise, it is cleared.
   N - - - - - Z C
 
 
-Return from BRK, interrupt, kernal,  or subroutine         RTI RTN RTS
+Return from BRK, interrupt, kernel,  or subroutine         RTI RTN RTS
 
 Operation    description       Opcode bytes cycles
 
   RTI    Return from interrupt   40     1     5   P,PCw<(SP),SP<SP+3
-  RTN #n Return from kernal      62     2     7   PCw<(SP)+1,SP<SP+2+N
+  RTN #n Return from kernel      62     2     7   PCw<(SP)+1,SP<SP+2+N
   RTS    Return from subroutine  60     1     4   PCw<(SP)+1,SP<SP+2
 
      The  RTI  or  ReTurn  from Interrupt instruction pulls P register
@@ -3608,7 +3609,7 @@ stack pointer SP is resultantly incremented by 2.  Execution continues
 at  the  address recovered + 1, since BSR and JSR instructions set the
 return address one byte short of the desire return address.
 
-     The  RTN  or  ReTurn  from  kerNal  subroutine is similar to RTS,
+     The  RTN  or  ReTurn  from  kerNel  subroutine is similar to RTS,
 except  that  it contains an immediate parameter N indicating how many
 extra  bytes  to  discard from the stack. This is useful for returning
 from subroutines which have arguments passed to them on the stack. The
@@ -4134,7 +4135,7 @@ addresses used to generate the multiplexed row and column addresses.
                         2000    Basic
                         4000    New area B
                         5000    Character sets
-                        6000    Kernal
+                        6000    Kernel
 
                 ROM can appear (to the 4567) at 1000-1FFF (bank 0)
 
@@ -4654,6 +4655,8 @@ programming  bit,  the  remaining  3  bits  are  not used. The palette
 locations are not readable by the CPU.
 
 
+2.4.5. Registers
+
                           C4567R6 Registers
 
                 MEMORY MAP SELECT AND ENABLE REGISTERS
@@ -4839,11 +4842,11 @@ locations are not readable by the CPU.
                         COLOR PALETTES
 
 +-------+-------+-------+-------+-------+-------+-------+-------+
-|       |       |       | FG/BG | RED3  | RED2  | RED1  | RED0  | 100-1FF RED
+|       |       |       | FG/BG | RED3  | RED2  | RED1  | RED0  | D100-D1FF RED
 +-------+-------+-------+-------+-------+-------+-------+-------+
-|       |       |       |       | GRN3  | GRN2  | GRN1  | GRN0  | 200-2FF GREEN
+|       |       |       |       | GRN3  | GRN2  | GRN1  | GRN0  | D200-D2FF GREEN
 +-------+-------+-------+-------+-------+-------+-------+-------+
-|       |       |       |       | BLU3  | BLU2  | BLU1  | BLU0  | 300-3FF BLUE
+|       |       |       |       | BLU3  | BLU2  | BLU1  | BLU0  | D300-D3FF BLUE
 +-------+-------+-------+-------+-------+-------+-------+-------+
 
 
@@ -4864,6 +4867,8 @@ locations are not readable by the CPU.
 |       |       |       |       |       |       |  EN1  |  EN0  | DD02 (WRITE)
 +-------+-------+-------+-------+-------+-------+-------+-------+
 
+
+2.4.6. Limitations and Avoiding Them
 
            Limitations of the C4567R6 and How to Avoid Them
 
@@ -4986,7 +4991,7 @@ of  extra  ROM  is available in one 8K block at 8000 (hex), and one 4K
 block at C000 (hex). To enable ROM at these areas, set the ROM@8000 or
 ROM@COOO  bits  in  Control Register  "A".  (Note that there are other
 chips  in the C65 which extend this addressing limitation. The C65 has
-a 1MB ROM built-in.)
+a 1MBit/128kByte ROM built-in.)
 
 
 Alternate Character Set
@@ -6334,6 +6339,8 @@ of CLK.
 
 2.7. DMAgic DMA CONTROLLER F018 (Preliminary)
 
+A more detailed documentation is at section 4.
+
 
 2.7.1. F018 DESCRIPTION
 
@@ -6356,7 +6363,7 @@ Special features include:
 
         * Ability to CHAIN multiple DMA command sequences.
 
-        * Absolute Address access to entire System Memory (8MB).
+        * Absolute Address access to entire System Memory (1MB).
 
         * Blocks can be up to 64K bytes long.
 
@@ -6525,7 +6532,7 @@ these bits into the reset (low) state. The four bits are defined as:
  x100    Expansion RAM bank 0, physical address  $C0000-$DFFFF
  x110    Expansion RAM bank 0, physical address  $E0000-$FFFFF
  x101    Expansion RAM bank 1, physical address  $C0000-$DFFFF
- x111    Expansion RAM bank 1, physical address  $E0000-$EFFFF
+ x111    Expansion RAM bank 1, physical address  $E0000-$FFFFF
 
          CPU sees (note that DMA and VIC-DAT access see this too):
  ----    --------------------
@@ -15777,6 +15784,10 @@ Command string bytes:    baud|word|parity|stop(unused)|duplex|xline
 
 4.0. C65 DMAgic (F018B) DMA Coprocessor
 
+Also  refer  to  chapter  2.7., this  chapter  has  originally  been a
+separate document.
+
+
 4.1. Introduction
 
 The  C64DX DMAgic chip  is a  command-list  DMA (Direct Memory Access)
@@ -15848,17 +15859,17 @@ following code  illustrates a  generic  DMAT  call  for  a  previously
 prepared DMAT instruction list:
 
 
-		LDA #bank      ;The bank (0-15) where the list is
-		STA $D702
-		LDA #>address  ;The high byte of the list address
-		STA $D701
-		LDA #<address
-		STA $D700      ;The low byte of the list address
-                     ;This also triggers the DMA operation,
-                     ;and the CPU is suspended
+        LDA #bank       ;The bank (0-15) where the list is
+        STA $D702
+        LDA #>address   ;The high byte of the list address
+        STA $D701
+        LDA #<address
+        STA $D700       ;The low byte of the list address
+                        ;This also triggers the DMA operation,
+                        ;and the CPU is suspended
 
-loop:	BIT $D703      ;Check status (in case IRQ/NMI enabled)
-		BMI loop       ; busy
+loop:   BIT $D703       ;Check status (in case IRQ/NMI enabled)
+        BMI loop        ; busy
 
 
 4.3. DMAT Internal Registers
@@ -16200,15 +16211,15 @@ this 191 times (26*8 -(2*8+1)), or  until the image is  back at column
 
 Add the following code to the program:
 
- 300 :						:REM SLIDE USING BARREL SHIFTER
- 310 SHFT = 1: MISC = SCRLOC * 8 + SHFT		    :REM SHFT IS BIT(2:0) OF XYMISC
- 320 COL = 0: WID = 40: CNT = HGT*256 + WID	 :REM BOX IS FULL SCREEN WIDTH
- 330 SRC = (ROW + HGT -1)*128 + (COL + WID -1) :REM SRC IS LOWER RIGHT CORNER
+ 300 :					      :REM SLIDE USING BARREL SHIFTER
+ 310 SHFT = 1: MISC = SCRLOC * 8 + SHFT       :REM SHFT IS BIT(2:0) OF XYMISC
+ 320 COL = 0: WID = 40: CNT = HGT*256 + WID   :REM BOX IS FULL SCREEN WIDTH
+ 330 SRC = (ROW + HGT -1)*128 + (COL + WID -1):REM SRC IS LOWER RIGHT CORNER
  340 CMHI = 8 + 4 + 2 + 1: XYMOD = 128 - WID + 1
- 345 :						:REM IMAGE STARTS IN COLUMN 26
+ 345 :					      :REM IMAGE STARTS IN COLUMN 26
  350 FOR SLIDE = 26*8 TO 2*8+1 STEP -1
  360    DMA CPY+32+16,CNT,SRC,0,SRC,0, CMHI,XYMD,MISC :REM COPY IN PLACE
- 370 NEXT SLIDE						                       :REM SLIDES BOX
+ 370 NEXT SLIDE				      :REM SLIDES BOX
 
 In line 310, we are  setting the  SHIFT value to 1, and  ORing it into
 B2:B0 of the  XYMISC byte.  A shift can be from  1 to 7 pixels, either
@@ -16385,10 +16396,10 @@ B. C64DX System Specification UPDATE
 |   <| !  | "  | # '| $  | %  | &  | ' /| (  | )  |  " |  ? |  ` |  ^ |CLR |INST|
 |PI >| 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 0  | + á| - '| £ [|HOME|DEL |
 +----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+----+
-|  TAB  |    |    |    |    |    |  Z |    |    |    |    |  \ |    |  \ | RSTR |
+|  TAB  |    |    |    |    |    |  Z |    |    |    |    |  Ü |    |  \ | RSTR |
 |       | Q  | W  | E  | R  | T  | Y  | U  | I  | O  | P  | @  | * +| ^ ]|      |
 +----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+------+
-|CTRL|SHFT|    |    |    |    |    |    |    |    |    |  V |  D |  ' |  RETURN |
+|CTRL|SHFT|    |    |    |    |    |    |    |    |    |  Ö |  Ä |  ' |  RETURN |
 |    |LOCK| A  | S  | D  | F  | G  | H  | J  | K  | L  | : [| ; ]| = #|         |
 +----+----+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+--+-+----+----+----+
 | C= | SHIFT |  Y |    |    |    |    |    |    | < ;| > :| ? _| SHIFT|CRSR|
@@ -16535,6 +16546,6 @@ MOUSE OFF
          position. Kernel doesn't let hotspot leave the screen.
 
 
-SYS 38552 - Enter DX mode (*TODO: verify, isn't it SYS 58552?)
-(*TODO* integrate into document start)
+SYS 58552 (in C64 mode) - enter C65 mode
+
 
